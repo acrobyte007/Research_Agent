@@ -1,56 +1,44 @@
-from langchain.agents import AgentExecutor, create_react_agent
-from langchain_community.tools import ArxivQueryRun
-from langchain_groq import ChatGroq
-from langchain_core.prompts import PromptTemplate
-from dotenv import load_dotenv
+from fastmcp import Client
+import asyncio
+import requests
 import os
+from datetime import datetime
+import httpx
 
-# Load environment variables
-load_dotenv()
-groq_api_key = os.getenv("GROQ_API_KEY")
+async def test_pdf_summarize(pdf_url: str, download: bool = True):
+    try:
+        # Configure client with no timeout
+        async with Client("http://127.0.0.1:4201/mcp/", timeout=None) as client:
+            print(f"Attempting to summarize PDF: {pdf_url}")
+            # Request summary from the server
+            result = await client.call_tool("summarize_pdf_tool", {"pdf_url": pdf_url})
+            print("PDFSummarize Result:", result)
 
-# Initialize the language model
-llm = ChatGroq(
-    model="llama3-8b-8192",  # Changed model_name to model
-    groq_api_key=groq_api_key,
-    max_retries=1,
-    temperature=0.0
-)
+            # Download the PDF if requested and summary is successful
+            if download and "summary" in result:
+                try:
+                    print(f"Downloading PDF from {pdf_url}...")
+                    response = requests.get(pdf_url, timeout=10)
+                    response.raise_for_status()
+                    # Generate filename with timestamp
+                    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                    filename = f"downloaded_pdf_{timestamp}.pdf"
+                    with open(filename, "wb") as f:
+                        f.write(response.content)
+                    print(f"PDF downloaded successfully as: {filename}")
+                except requests.RequestException as e:
+                    print(f"PDF Download Error: {str(e)}")
+            return result
+    except httpx.ConnectError:
+        print("PDFSummarize Error: Could not connect to server. Ensure it is running on http://127.0.0.1:4201.")
+        return None
+    except Exception as e:
+        print(f"PDFSummarize Error: {str(e)}")
+        return None
 
-tools = [ArxivQueryRun()]
+async def main():
+    pdf_url = "http://arxiv.org/pdf/1909.03550v1"
+    await test_pdf_summarize(pdf_url, download=True)
 
-
-template = """
-Answer the following questions as best you can. You have access to the following tools:
-
-{tools}
-
-Use the following format:
-Thought: [Your thought process]
-Action: [The action to take, should be one of [{tool_names}]]
-Action Input: [The input to the action]
-Observation: [The result of the action]
-
-When you have a final answer, provide it in this format:
-Final Answer: [Your final answer]
-
-Question: {input}
-Thought: {agent_scratchpad}
-"""
-
-prompt = PromptTemplate.from_template(template)
-agent = create_react_agent(llm, tools, prompt)
-
-agent_executor = AgentExecutor(
-    agent=agent,
-    tools=tools,
-    verbose=True,
-    handle_parsing_errors=True 
-)
-
-# Execute the query
-result = agent_executor.invoke({
-    "input": "What's the paper 1605.08386 about?"
-})
-
-print(result['output']) 
+if __name__ == "__main__":
+    asyncio.run(main())
