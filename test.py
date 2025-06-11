@@ -1,41 +1,56 @@
-
 from langchain.agents import AgentExecutor, create_react_agent
-from langchain_community.agent_toolkits.load_tools import load_tools
+from langchain_community.tools import ArxivQueryRun
 from langchain_groq import ChatGroq
 from langchain_core.prompts import PromptTemplate
 from dotenv import load_dotenv
-load_dotenv()
 import os
-groq_api_key=os.getenv("GROQ_API_KEY")
 
+# Load environment variables
+load_dotenv()
+groq_api_key = os.getenv("GROQ_API_KEY")
+
+# Initialize the language model
 llm = ChatGroq(
-     model_name="llama3-8b-8192",
+    model="llama3-8b-8192",  # Changed model_name to model
     groq_api_key=groq_api_key,
     max_retries=1,
-    temperature=0.0)
-tools = load_tools(
-    ["arxiv"],
+    temperature=0.0
 )
-template ="""Answer the following questions as best you can. You have access to the following tools
-{tools}:
-Action: the action to take, should be one of [{tool_names}]
-Thought:{agent_scratchpad}
-Question:{input}
- """
+
+tools = [ArxivQueryRun()]
+
+
+template = """
+Answer the following questions as best you can. You have access to the following tools:
+
+{tools}
+
+Use the following format:
+Thought: [Your thought process]
+Action: [The action to take, should be one of [{tool_names}]]
+Action Input: [The input to the action]
+Observation: [The result of the action]
+
+When you have a final answer, provide it in this format:
+Final Answer: [Your final answer]
+
+Question: {input}
+Thought: {agent_scratchpad}
+"""
+
 prompt = PromptTemplate.from_template(template)
-def _handle_error(error) -> str:
-    return str(error)[:50]
 agent = create_react_agent(llm, tools, prompt)
-agent_executor = AgentExecutor(agent=agent, 
-                               tools=tools,
-                               verbose=True,
-                               handle_parsing_errors=_handle_error
-                               )
 
-result=agent_executor.invoke(
-    {
-        "input": "What's the paper 1605.08386 about?",
-    }
+agent_executor = AgentExecutor(
+    agent=agent,
+    tools=tools,
+    verbose=True,
+    handle_parsing_errors=True 
 )
 
-print(result)
+# Execute the query
+result = agent_executor.invoke({
+    "input": "What's the paper 1605.08386 about?"
+})
+
+print(result['output']) 
