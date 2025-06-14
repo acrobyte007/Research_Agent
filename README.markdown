@@ -1,6 +1,6 @@
 # Paper Search & Summarization 
 
-This project is a FastAPI-based web application that summarizes academic papers using the `langchain_mcp_adapters` library to connect to paper search and summarization microservices, powered by a Grok language model via `langchain_groq`.
+This project is a FastAPI-based web application that summarizes academic papers using the `mcp_use` library to connect to the MCP server having two tols, powered by a Grok language model via `langchain_groq`.
 
 ## Prerequisites
 
